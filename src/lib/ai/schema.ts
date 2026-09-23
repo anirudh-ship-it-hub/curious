@@ -41,10 +41,18 @@ interface TreeNodeShape {
   children: TreeNodeShape[];
 }
 
+// "1-3 sentences" alone reliably produced correct-but-abstract encyclopedia prose — real
+// beta feedback (2026-09-25): "content is very vague, not helping me understand even in going
+// deeper." The fix isn't length, it's concreteness: the explicit push for a real example/
+// analogy/number below is what's new.
 export const TreeNodeSchema: z.ZodType<TreeNodeShape> = z.lazy(() =>
   z.object({
     label: z.string().describe("Short title for this point, a few words."),
-    detail: z.string().describe("1-3 sentences explaining this specific point."),
+    detail: z
+      .string()
+      .describe(
+        "1-3 sentences explaining this specific point. Ground it in one concrete example, real number, comparison, or vivid scenario wherever that would actually clarify it — a reader should come away with something specific they can picture, not just a correctly-worded abstraction."
+      ),
     children: z.array(TreeNodeSchema).describe("Sub-points nested under this one. Empty array if this is a leaf."),
   })
 );
@@ -53,7 +61,11 @@ export type TreeNode = TreeNodeShape;
 export const GraphNodeSchema = z.object({
   id: z.string().describe("Short stable identifier, e.g. 'political-instability'."),
   label: z.string().describe("Short title for this node, a few words."),
-  detail: z.string().describe("1-3 sentences explaining this specific node."),
+  detail: z
+    .string()
+    .describe(
+      "1-3 sentences explaining this specific node. Ground it in one concrete example, real number, comparison, or vivid scenario wherever that would actually clarify it — a reader should come away with something specific they can picture, not just a correctly-worded abstraction."
+    ),
 });
 
 export const GraphEdgeSchema = z.object({

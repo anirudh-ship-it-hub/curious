@@ -4,10 +4,9 @@ import { useEffect, useState } from "react";
 import type { MakeItStickEval } from "@/lib/ai/schema";
 import type { InterpretResult } from "@/lib/ai/interpret";
 import { AppNav } from "@/components/app-nav";
-import { ARCHETYPE_LABELS, KnowledgeContentView, MakeItStick, SaveButton, ThumbsButtons } from "@/components/knowledge-view";
+import { KnowledgeContentView, MakeItStick, SaveButton, ThumbsButtons } from "@/components/knowledge-view";
 import { OnboardingTour } from "@/components/onboarding-tour";
 import { logDepthView } from "@/lib/log-depth-view";
-import { formatMotifTag } from "@/lib/ai/motifs";
 
 type Depth = "gist" | "explore" | "stick";
 
@@ -228,25 +227,15 @@ function FullResult({
 }) {
   return (
     <div className="mt-8">
-      <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-        <span className="rounded-full bg-ink px-3 py-1 font-medium text-mist">
-          {ARCHETYPE_LABELS[result.archetype]}
-        </span>
-        {result.motifTags.map((tag) => (
-          <span
-            key={tag}
-            className="rounded-full border border-zinc-300 px-3 py-1 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
-          >
-            {formatMotifTag(tag)}
-          </span>
-        ))}
-        <span className="ml-auto text-zinc-400">
-          complexity {result.complexity} · importance {result.importance} · difficulty {result.difficulty}
-        </span>
-        <div className="flex items-center gap-2">
-          <ThumbsButtons value={thumbsUp} onChange={onThumbs} />
-          {result.id && <SaveButton questionId={result.id} />}
-        </div>
+      {/* Archetype badge, motif tags, and the complexity/importance/difficulty numbers used to
+          render here — internal classification metadata (recommendation-engine/eval inputs),
+          not something a reader could use. Removed 2026-09-25 after real friend-testing
+          feedback ("random tags complexity etc on top which is not very relevant"). Still
+          computed and stored (result.archetype/motifTags/complexity/etc.) for the
+          recommendation engine and Map — only the display here changed. */}
+      <div className="mb-4 flex items-center justify-end gap-2">
+        <ThumbsButtons value={thumbsUp} onChange={onThumbs} />
+        {result.id && <SaveButton questionId={result.id} />}
       </div>
 
       <div className="mb-4 flex gap-1 rounded-full bg-zinc-200/70 p-1 text-sm dark:bg-zinc-800/70">

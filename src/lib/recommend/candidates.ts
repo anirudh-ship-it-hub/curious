@@ -132,9 +132,22 @@ export async function buildCandidatePools(
   ]);
 
   const excludeIds = new Set(alreadyShownIds);
+  // Dedupe by normalized question text (2026-09-25 fix — real beta data: two different users,
+  // and once the same user twice an hour apart, all independently asked "game theory," which
+  // showed up in Drift as three separately-worded-identical cards. The per-user "never re-show
+  // the SAME row" rule (§14) was working correctly — this is a different problem, near-duplicate
+  // CONTENT across different rows in the shared pool, which that rule was never meant to catch.
+  // Keeps the first (newest, since poolRows is already created_at desc) row per unique text.
+  const seenText = new Set<string>();
   const pool: Candidate[] = ((poolRows ?? []) as unknown as PoolRow[])
     .map(toCandidate)
-    .filter((c) => !excludeIds.has(c.id));
+    .filter((c) => !excludeIds.has(c.id))
+    .filter((c) => {
+      const normalized = c.question.trim().toLowerCase();
+      if (seenText.has(normalized)) return false;
+      seenText.add(normalized);
+      return true;
+    });
 
   // Relevant-slot weighting = all-time count (stable baseline, top motifs the user has ever
   // meaningfully cared about — never vanishes) + recent-window count (current-focus signal,

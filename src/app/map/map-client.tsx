@@ -63,12 +63,37 @@ type FetchState =
 
 type ViewMode = "map" | "saved";
 
+// First-visit explainer, shown once ever (real friend-testing feedback, 2026-09-25: "Map is
+// very weird, people are not getting a clue on what it is"). The existing on-demand "i" button
+// wasn't solving this — nobody taps an icon to find out what a screen means before deciding
+// whether it's worth understanding. This is deliberately more concrete than the InfoButton's
+// own copy ("each dot is a THEME IN WHAT YOU'VE ASKED ABOUT," not "a pattern you've explored")
+// since the abstract version is exactly what wasn't landing.
+const MAP_INTRO_SEEN_KEY = "curious-seen-map-intro";
+
 export function MapClient() {
   const [view, setView] = useState<ViewMode>("map");
   const [state, setState] = useState<FetchState>({ status: "loading" });
   const [range, setRange] = useState<TimeRange>("all");
   const [selectedMotif, setSelectedMotif] = useState<string | null>(null);
   const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
+  const [showIntro, setShowIntro] = useState(false);
+
+  useEffect(() => {
+    try {
+      setShowIntro(!localStorage.getItem(MAP_INTRO_SEEN_KEY));
+    } catch {
+      setShowIntro(false);
+    }
+  }, []);
+  function dismissIntro() {
+    setShowIntro(false);
+    try {
+      localStorage.setItem(MAP_INTRO_SEEN_KEY, "1");
+    } catch {
+      // ignore — worst case it shows again next session
+    }
+  }
 
   useEffect(() => {
     fetch("/api/curiosity-map")
@@ -179,6 +204,22 @@ export function MapClient() {
       {view === "map" && state.status === "ready" && nodes.length > 0 && (
         <div className="relative flex-1">
           <MapCanvas nodes={nodes} onSelectMotif={setSelectedMotif} selectedMotif={selectedMotif} />
+
+          {showIntro && (
+            <div className="absolute inset-x-4 top-4 z-10 rounded-2xl bg-white p-4 shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
+              <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                Each dot is a theme in what you&apos;ve been curious about — bigger means you&apos;ve
+                asked about it more. The lines just connect nearby ones. Tap any dot to see the
+                actual questions behind it.
+              </p>
+              <button
+                onClick={dismissIntro}
+                className="mt-3 rounded-full bg-ink px-4 py-1.5 text-xs font-medium text-mist"
+              >
+                Got it
+              </button>
+            </div>
+          )}
 
           {selectedMotif && (
             <MapPanel
@@ -384,7 +425,8 @@ function InfoButton() {
       </button>
       {open && (
         <div className="absolute top-11 left-0 w-48 rounded-xl bg-white p-3 text-xs leading-relaxed text-zinc-600 shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:ring-zinc-800">
-          Bigger circle = a pattern you&apos;ve explored more. Tap one to see the questions behind it.
+          Each dot is a theme in what you&apos;ve asked about — bigger means more often. Tap one to
+          see the actual questions behind it.
         </div>
       )}
     </div>
