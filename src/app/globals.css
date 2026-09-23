@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+/* Settings' light/dark/system toggle (docs/decisions.md §20) needs `dark:` to respond to a
+   class, not just system preference — Tailwind v4 defaults to the media-query strategy, so
+   this override is required for a manual switch to work at all. ThemeProvider
+   (src/components/theme-provider.tsx) sets/removes `.dark` on <html>; for "system" it still
+   computes from prefers-color-scheme, just applied via the same class rather than a parallel
+   CSS mechanism, so there's exactly one source of truth. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+:root.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Curious Shorts headline face — docs/design/curious-shorts.md. Editorial serif, used only for
+   the topic headline on a short card; everything else in the app stays on Geist Sans. */
+.font-editorial {
+  font-family: var(--font-newsreader), Georgia, serif;
+}

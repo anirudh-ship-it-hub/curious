@@ -1,0 +1,45 @@
+{
+  "name": "curious",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "interpret": "tsx scripts/interpret.ts",
+    "eval:archetypes": "tsx scripts/eval-archetypes.ts",
+    "eval:depth": "tsx scripts/eval-depth.ts",
+    "eval:safety": "tsx scripts/eval-safety.ts",
+    "eval:bandit": "tsx scripts/validate-bandit.ts",
+    "eval:recommend": "tsx scripts/validate-recommend.ts",
+    "seed": "tsx scripts/seed-questions.ts",
+    "test:rls": "tsx scripts/test-rls.ts",
+    "metrics": "tsx scripts/beta-metrics.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.53",
+    "@ai-sdk/deepseek": "^3.0.44",
+    "@ai-sdk/groq": "^4.0.41",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
+    "ai": "^7.0.99",
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "^4.6.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "playwright": "^1.63.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.13",
+    "typescript": "^5"
+  }
+}
