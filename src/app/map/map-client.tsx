@@ -21,9 +21,40 @@ const RANGE_MS: Record<Exclude<TimeRange, "all">, number> = {
   "30d": 30 * 24 * 60 * 60 * 1000,
 };
 
-const MIN_SCALE = 0.4;
+// MIN_SCALE is a manual-zoom-out floor, not the auto-fit target — auto-fit (below) computes
+// its own scale from the actual data and isn't clamped to this, so a map with many motifs can
+// still fit fully even below 40% (flagged 2026-09-24: "always auto zoom to fit entire chart").
+const MIN_SCALE = 0.15;
 const MAX_SCALE = 2.5;
 const ZOOM_STEP = 1.2;
+
+// Rendered node size is deliberately decoupled from LaidOutNode.r (curiosity-map-layout.ts,
+// 24-90px) — that larger radius only exists so the layout's overlap-relaxation pass spaces
+// nodes generously apart; rendering it directly produced the "noisy," cramped bubble chart
+// flagged 2026-09-24. Small dots at the same (generously-spaced) positions, connected by thin
+// lines, is what actually gives the constellation/network look from the reference image —
+// the extra space the big layout radius already reserved becomes visible breathing room
+// instead of being filled with more circle.
+const MIN_DOT_R = 4;
+const MAX_DOT_R = 14;
+function dotRadius(count: number, maxCount: number): number {
+  if (maxCount <= 0) return MIN_DOT_R;
+  const t = Math.sqrt(count / maxCount);
+  return MIN_DOT_R + t * (MAX_DOT_R - MIN_DOT_R);
+}
+
+// Shared with the brain outline (outlinePath) AND the auto-fit-to-screen effect (MapCanvas) —
+// one source of truth for "how far out does the content actually reach," so the outline and
+// the auto-fit scale can never disagree with each other.
+function baseOutlineRadius(nodes: LaidOutNode[]): number {
+  if (nodes.length === 0) return 0;
+  const maxCount = Math.max(...nodes.map((n) => n.count));
+  const extent = Math.max(...nodes.map((n) => Math.hypot(n.x, n.y) + dotRadius(n.count, maxCount)), 40);
+  return extent * 1.3 + 20;
+}
+// Largest radius multiplier used anywhere in BRAIN_OUTLINE_POINTS below — the true outer edge
+// of the outline shape is baseOutlineRadius() * this, not baseOutlineRadius() itself.
+const OUTLINE_MAX_MULT = 1.15;
 
 type FetchState =
   | { status: "loading" }
@@ -193,6 +224,19 @@ function MapCanvas({
     return () => observer.disconnect();
   }, []);
 
+  // Always opens fully zoomed-out to fit the whole map (flagged 2026-09-24: "always auto zoom
+  // to fit entire chart on mobile") — recomputed whenever the container is measured/resized or
+  // the node set changes (a new time-range filter, or first data load), never fighting a
+  // mid-session manual zoom the rest of the time. Capped at 100%: fitting a sparse map (few
+  // motifs) shouldn't auto-zoom IN past actual size, only ever out; manual + still can.
+  useEffect(() => {
+    if (!size.width || !size.height || nodes.length === 0) return;
+    const outerRadius = baseOutlineRadius(nodes) * OUTLINE_MAX_MULT;
+    const fitScale = Math.min(1, Math.min(size.width, size.height) / (outerRadius * 2 * 1.15));
+    setScale(Math.max(MIN_SCALE, fitScale));
+    setPan({ x: 0, y: 0 });
+  }, [nodes, size.width, size.height]);
+
   function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
     (e.target as Element).setPointerCapture(e.pointerId);
     dragState.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
@@ -221,11 +265,20 @@ function MapCanvas({
   const centerX = size.width / 2 + pan.x;
   const centerY = size.height / 2 + pan.y;
 
-  // Enclosing "mind" outline (flagged 2026-09-23: "no outline... mind shaped outline maybe") —
-  // an organic blob sized to whatever the current node layout actually spans, not a fixed
-  // shape, so it stays a snug boundary as the map grows. Deterministic (sine-based wobble, no
-  // Math.random) so it doesn't reshuffle on every re-render.
+  // Enclosing "mind" outline (flagged 2026-09-23/24: "no outline... mind shaped outline maybe",
+  // then "the mind shape is not very evident") — an organic blob sized to whatever the current
+  // node layout actually spans, not a fixed shape, so it stays a snug boundary as the map
+  // grows. Deterministic (fixed angle/multiplier table, no Math.random) so it doesn't reshuffle
+  // on every re-render. Line-only now (no fill wash) — the reference image supplied 2026-09-24
+  // is plain line art on a bare background, and the previous filled version read as a muddy
+  // colored blob competing with the nodes rather than a clean boundary around them.
   const blobPath = useMemo(() => outlinePath(nodes), [nodes]);
+  const maxCount = useMemo(() => Math.max(1, ...nodes.map((n) => n.count)), [nodes]);
+  // Purely decorative constellation lines (nearest 2 neighbors per node) — there's no real
+  // edge data between motifs, but the reference image's network-of-connected-points look is
+  // what actually reads as "a mind" rather than a set of isolated bubbles, so this borrows the
+  // visual device without claiming a relationship the data doesn't have.
+  const constellationLines = useMemo(() => nearestNeighborLines(nodes), [nodes]);
 
   return (
     <div ref={containerRef} className="absolute inset-0">
@@ -244,28 +297,47 @@ function MapCanvas({
             {blobPath && (
               <path
                 d={blobPath}
-                className="fill-amber-100/40 stroke-amber-300/70 dark:fill-amber-950/20 dark:stroke-amber-800/60"
-                strokeWidth={2 / scale}
+                fill="none"
+                className="stroke-zinc-400 dark:stroke-zinc-600"
+                strokeWidth={1.5 / scale}
               />
             )}
-            {nodes.map((node) => (
-              <g
-                key={node.motif}
-                transform={`translate(${node.x}, ${node.y})`}
-                onClick={() => onSelectMotif(node.motif)}
-                className="cursor-pointer"
-              >
-                <circle
-                  r={node.r}
-                  className={
-                    selectedMotif === node.motif
-                      ? "fill-amber-400 dark:fill-amber-500"
-                      : "fill-amber-200 hover:fill-amber-300 dark:fill-amber-900 dark:hover:fill-amber-800"
-                  }
-                />
-                <NodeLabel motif={node.motif} r={node.r} />
-              </g>
+            {constellationLines.map(([a, b]) => (
+              <line
+                key={`${a.motif}|${b.motif}`}
+                x1={a.x}
+                y1={a.y}
+                x2={b.x}
+                y2={b.y}
+                className="stroke-zinc-300 dark:stroke-zinc-700"
+                strokeWidth={1 / scale}
+              />
             ))}
+            {nodes.map((node) => {
+              const r = dotRadius(node.count, maxCount);
+              const selected = selectedMotif === node.motif;
+              return (
+                <g
+                  key={node.motif}
+                  transform={`translate(${node.x}, ${node.y})`}
+                  onClick={() => onSelectMotif(node.motif)}
+                  className="cursor-pointer"
+                >
+                  {/* Invisible larger hit-area — the visible dot is intentionally small,
+                      down to 4px, well under a usable touch target on its own. */}
+                  <circle r={Math.max(r, 22)} fill="transparent" />
+                  <circle
+                    r={r}
+                    className={
+                      selected
+                        ? "fill-amber-500 dark:fill-amber-400"
+                        : "fill-zinc-500 hover:fill-zinc-700 dark:fill-zinc-400 dark:hover:fill-zinc-200"
+                    }
+                  />
+                  <NodeLabel motif={node.motif} r={r} show={r >= (MIN_DOT_R + MAX_DOT_R) / 2} />
+                </g>
+              );
+            })}
           </g>
         </svg>
       )}
@@ -343,32 +415,56 @@ function wrapLabel(label: string, maxChars: number): string[] {
   return lines;
 }
 
-// Fixed "words bleeding out of the circle" (flagged 2026-09-23) — the label now wraps to fit
-// the bubble's own radius instead of rendering as one unbroken line. Font size and wrap width
-// both scale with the node's radius so small bubbles get a tighter, still-legible fit rather
-// than clipping or overflowing.
-function NodeLabel({ motif, r }: { motif: string; r: number }) {
-  if (r < 22) return null;
+// Labels now sit BELOW the dot, not wrapped inside it — nodes shrank to small constellation
+// points (flagged 2026-09-24: "very noisy... use attached image as reference"), too small for
+// text to fit inside anymore. Only the more-explored half of nodes get a label at all (`show`,
+// set by the caller from the same size threshold used to decide dot size) — labeling every dot
+// was exactly the clutter that made the previous version noisy; the rest stay as tappable
+// unlabeled points, same as the reference image's unlabeled node field.
+function NodeLabel({ motif, r, show }: { motif: string; r: number; show: boolean }) {
+  if (!show) return null;
   const label = formatMotifTag(motif);
-  const fontSize = Math.max(8, Math.min(12, r / 4));
-  const maxChars = Math.max(4, Math.floor((r * 1.5) / (fontSize * 0.56)));
-  const lines = wrapLabel(label, maxChars).slice(0, 3);
+  const fontSize = 10;
+  const maxChars = 16;
+  const lines = wrapLabel(label, maxChars).slice(0, 2);
   const lineHeight = fontSize * 1.2;
-  const startDy = -((lines.length - 1) * lineHeight) / 2;
 
   return (
     <text
       textAnchor="middle"
-      className="pointer-events-none select-none fill-amber-900 font-medium dark:fill-amber-100"
+      className="pointer-events-none select-none fill-zinc-500 font-medium dark:fill-zinc-400"
       style={{ fontSize }}
     >
       {lines.map((line, i) => (
-        <tspan key={i} x={0} dy={i === 0 ? startDy : lineHeight}>
+        <tspan key={i} x={0} y={r + 14 + i * lineHeight}>
           {line}
         </tspan>
       ))}
     </text>
   );
+}
+
+// Purely decorative — no real motif-to-motif edge data exists, just each node connected to its
+// nearest 2 neighbors by position, which is what actually produces the constellation/network
+// look (reference image, 2026-09-24) rather than a field of disconnected dots. O(n²), fine at
+// beta node counts (a few dozen motifs at most).
+function nearestNeighborLines(nodes: LaidOutNode[], k = 2): [LaidOutNode, LaidOutNode][] {
+  const lines: [LaidOutNode, LaidOutNode][] = [];
+  const seen = new Set<string>();
+  for (const a of nodes) {
+    const nearest = nodes
+      .filter((b) => b.motif !== a.motif)
+      .map((b) => ({ b, d: Math.hypot(a.x - b.x, a.y - b.y) }))
+      .sort((p, q) => p.d - q.d)
+      .slice(0, k);
+    for (const { b } of nearest) {
+      const key = [a.motif, b.motif].sort().join("|");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      lines.push([a, b]);
+    }
+  }
+  return lines;
 }
 
 // A deliberately brain-shaped boundary, not a random wobbly blob (the first pass read as an
@@ -399,8 +495,7 @@ const BRAIN_OUTLINE_POINTS: [number, number][] = [
 
 function outlinePath(nodes: LaidOutNode[]): string | null {
   if (nodes.length === 0) return null;
-  const extent = Math.max(...nodes.map((n) => Math.hypot(n.x, n.y) + n.r), 40);
-  const baseR = extent * 1.3 + 20;
+  const baseR = baseOutlineRadius(nodes);
 
   const pts = BRAIN_OUTLINE_POINTS.map(([angleDeg, mult]) => {
     const theta = (angleDeg / 180) * Math.PI;
