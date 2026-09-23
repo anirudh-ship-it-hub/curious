@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppNav } from "@/components/app-nav";
 import { layoutNodes, type LaidOutNode } from "@/lib/curiosity-map-layout";
+import { formatMotifTag } from "@/lib/ai/motifs";
+import { SavedList } from "@/components/saved-list";
 
 interface QuestionRow {
   id: string;
@@ -28,7 +30,10 @@ type FetchState =
   | { status: "error" }
   | { status: "ready"; questions: QuestionRow[] };
 
-export function MapClient({ name }: { name: string | null }) {
+type ViewMode = "map" | "saved";
+
+export function MapClient() {
+  const [view, setView] = useState<ViewMode>("map");
   const [state, setState] = useState<FetchState>({ status: "loading" });
   const [range, setRange] = useState<TimeRange>("all");
   const [selectedMotif, setSelectedMotif] = useState<string | null>(null);
@@ -71,28 +76,48 @@ export function MapClient({ name }: { name: string | null }) {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-zinc-50 dark:bg-black">
       <AppNav />
-      <div className="mb-4 flex items-center justify-center gap-4 px-4">
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {name ? `${name}'s` : "Your"} curiosity map
-        </p>
+      <div className="mb-2 flex items-center justify-between px-4">
         <div className="flex gap-1 rounded-full bg-zinc-200/70 p-1 text-xs dark:bg-zinc-800/70">
-          {(["all", "7d", "30d"] as TimeRange[]).map((r) => (
+          {(["map", "saved"] as ViewMode[]).map((v) => (
             <button
-              key={r}
-              onClick={() => setRange(r)}
+              key={v}
+              onClick={() => setView(v)}
               className={`rounded-full px-3 py-1 font-medium transition-colors ${
-                range === r
+                view === v
                   ? "bg-white text-zinc-900 shadow dark:bg-zinc-900 dark:text-zinc-50"
                   : "text-zinc-500 dark:text-zinc-400"
               }`}
             >
-              {r === "all" ? "All time" : r === "7d" ? "7 days" : "30 days"}
+              {v === "map" ? "Map" : "Saved"}
             </button>
           ))}
         </div>
+        {view === "map" && (
+          <div className="flex gap-1 rounded-full bg-zinc-200/70 p-1 text-xs dark:bg-zinc-800/70">
+            {(["all", "7d", "30d"] as TimeRange[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`rounded-full px-3 py-1 font-medium transition-colors ${
+                  range === r
+                    ? "bg-white text-zinc-900 shadow dark:bg-zinc-900 dark:text-zinc-50"
+                    : "text-zinc-500 dark:text-zinc-400"
+                }`}
+              >
+                {r === "all" ? "All time" : r === "7d" ? "7 days" : "30 days"}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {state.status === "loading" && (
+      {view === "saved" && (
+        <div className="flex-1 overflow-y-auto">
+          <SavedList />
+        </div>
+      )}
+
+      {view === "map" && state.status === "loading" && (
         <div className="flex flex-1 items-center justify-center">
           <div className="grid grid-cols-3 gap-4">
             {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -105,13 +130,13 @@ export function MapClient({ name }: { name: string | null }) {
         </div>
       )}
 
-      {state.status === "error" && (
+      {view === "map" && state.status === "error" && (
         <p className="mt-10 text-center text-sm text-red-600">
           Something went wrong loading your map. Try refreshing.
         </p>
       )}
 
-      {state.status === "ready" && nodes.length === 0 && (
+      {view === "map" && state.status === "ready" && nodes.length === 0 && (
         <div className="flex flex-1 items-center justify-center px-6">
           <p className="max-w-sm text-center text-sm text-zinc-500 dark:text-zinc-400">
             Nothing to map yet. Ask a few things you&apos;re curious about, and this will start
@@ -120,7 +145,7 @@ export function MapClient({ name }: { name: string | null }) {
         </div>
       )}
 
-      {state.status === "ready" && nodes.length > 0 && (
+      {view === "map" && state.status === "ready" && nodes.length > 0 && (
         <div className="relative flex-1">
           <MapCanvas nodes={nodes} onSelectMotif={setSelectedMotif} selectedMotif={selectedMotif} />
 
@@ -196,6 +221,12 @@ function MapCanvas({
   const centerX = size.width / 2 + pan.x;
   const centerY = size.height / 2 + pan.y;
 
+  // Enclosing "mind" outline (flagged 2026-09-23: "no outline... mind shaped outline maybe") —
+  // an organic blob sized to whatever the current node layout actually spans, not a fixed
+  // shape, so it stays a snug boundary as the map grows. Deterministic (sine-based wobble, no
+  // Math.random) so it doesn't reshuffle on every re-render.
+  const blobPath = useMemo(() => outlinePath(nodes), [nodes]);
+
   return (
     <div ref={containerRef} className="absolute inset-0">
       {size.width > 0 && (
@@ -210,6 +241,13 @@ function MapCanvas({
           onWheel={onWheel}
         >
           <g transform={`translate(${centerX}, ${centerY}) scale(${scale})`}>
+            {blobPath && (
+              <path
+                d={blobPath}
+                className="fill-amber-100/40 stroke-amber-300/70 dark:fill-amber-950/20 dark:stroke-amber-800/60"
+                strokeWidth={2 / scale}
+              />
+            )}
             {nodes.map((node) => (
               <g
                 key={node.motif}
@@ -225,15 +263,7 @@ function MapCanvas({
                       : "fill-amber-200 hover:fill-amber-300 dark:fill-amber-900 dark:hover:fill-amber-800"
                   }
                 />
-                {node.r > 30 && (
-                  <text
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="pointer-events-none select-none fill-amber-900 text-[11px] font-medium dark:fill-amber-100"
-                  >
-                    {node.motif}
-                  </text>
-                )}
+                <NodeLabel motif={node.motif} r={node.r} />
               </g>
             ))}
           </g>
@@ -257,13 +287,136 @@ function MapCanvas({
         >
           −
         </button>
+        <p className="text-center text-[10px] font-medium text-zinc-400 dark:text-zinc-500">{Math.round(scale * 100)}%</p>
+        <InfoButton />
       </div>
+    </div>
+  );
+}
+
+// On-demand explanation of what the map means, replacing a permanent caption line that was
+// competing for space with the view/range toggles above it (flagged 2026-09-23: "so many
+// toggles... overlapping" and "feels a bit text heavy"). Grouped with the other map controls
+// instead of always-visible screen real estate.
+function InfoButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label="What this map shows"
+        aria-expanded={open}
+        className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-xs font-semibold text-zinc-500 shadow ring-1 ring-zinc-200 hover:text-zinc-900 dark:bg-zinc-900 dark:text-zinc-400 dark:ring-zinc-800 dark:hover:text-zinc-100"
+      >
+        i
+      </button>
+      {open && (
+        <div className="absolute top-11 left-0 w-48 rounded-xl bg-white p-3 text-xs leading-relaxed text-zinc-600 shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:ring-zinc-800">
+          Bigger circle = a pattern you&apos;ve explored more. Tap one to see the questions behind it.
+        </div>
+      )}
     </div>
   );
 }
 
 function clampScale(s: number): number {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
+}
+
+// Greedily wraps a label to a max character width per line — cheap and good enough at this
+// font size/scale; an exact canvas-measured wrap would be overkill for a handful of words in a
+// bubble (docs/decisions.md "don't over-engineer for beta scale").
+function wrapLabel(label: string, maxChars: number): string[] {
+  const words = label.split(" ");
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length > maxChars && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+// Fixed "words bleeding out of the circle" (flagged 2026-09-23) — the label now wraps to fit
+// the bubble's own radius instead of rendering as one unbroken line. Font size and wrap width
+// both scale with the node's radius so small bubbles get a tighter, still-legible fit rather
+// than clipping or overflowing.
+function NodeLabel({ motif, r }: { motif: string; r: number }) {
+  if (r < 22) return null;
+  const label = formatMotifTag(motif);
+  const fontSize = Math.max(8, Math.min(12, r / 4));
+  const maxChars = Math.max(4, Math.floor((r * 1.5) / (fontSize * 0.56)));
+  const lines = wrapLabel(label, maxChars).slice(0, 3);
+  const lineHeight = fontSize * 1.2;
+  const startDy = -((lines.length - 1) * lineHeight) / 2;
+
+  return (
+    <text
+      textAnchor="middle"
+      className="pointer-events-none select-none fill-amber-900 font-medium dark:fill-amber-100"
+      style={{ fontSize }}
+    >
+      {lines.map((line, i) => (
+        <tspan key={i} x={0} dy={i === 0 ? startDy : lineHeight}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
+}
+
+// A deliberately brain-shaped boundary, not a random wobbly blob (the first pass read as an
+// amoeba, not "a mind" — flagged twice, 2026-09-23 and 2026-09-24). Hand-tuned radius
+// multipliers at fixed angles give it the two features that actually read as "brain" at a
+// glance: two rounded lobes at the top with a shallow notch between them, and one smooth
+// unbroken curve along the bottom — mirrored left/right for anatomical symmetry. baseR still
+// tracks the layout's real extent (max distance from origin + node radius, plus padding), so
+// the shape scales with content without losing its silhouette. Deterministic: same nodes in,
+// same shape out.
+// [angle in degrees — screen convention, 0=right/90=down/180=left/270=up, radius multiplier]
+const BRAIN_OUTLINE_POINTS: [number, number][] = [
+  [270, 0.85], // top-center notch, between the two lobes
+  [285, 1.15], // right lobe peak
+  [310, 1.05], // right lobe outer
+  [340, 1.1], // right upper side
+  [0, 1.15], // right side, widest point
+  [30, 1.05], // right lower side
+  [60, 0.95], // taper toward bottom
+  [90, 1.0], // bottom-center, single smooth curve
+  [120, 0.95], // taper toward bottom (mirrored)
+  [150, 1.05], // left lower side
+  [180, 1.15], // left side, widest point
+  [200, 1.1], // left upper side
+  [230, 1.05], // left lobe outer
+  [255, 1.15], // left lobe peak
+];
+
+function outlinePath(nodes: LaidOutNode[]): string | null {
+  if (nodes.length === 0) return null;
+  const extent = Math.max(...nodes.map((n) => Math.hypot(n.x, n.y) + n.r), 40);
+  const baseR = extent * 1.3 + 20;
+
+  const pts = BRAIN_OUTLINE_POINTS.map(([angleDeg, mult]) => {
+    const theta = (angleDeg / 180) * Math.PI;
+    const r = baseR * mult;
+    return [r * Math.cos(theta), r * Math.sin(theta)];
+  });
+
+  const mid = (a: number[], b: number[]) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const first = mid(pts[pts.length - 1], pts[0]);
+  let d = `M ${first[0]} ${first[1]}`;
+  for (let i = 0; i < pts.length; i++) {
+    const next = pts[(i + 1) % pts.length];
+    const m = mid(pts[i], next);
+    d += ` Q ${pts[i][0]} ${pts[i][1]} ${m[0]} ${m[1]}`;
+  }
+  return d + " Z";
 }
 
 function MapPanel({
@@ -282,7 +435,7 @@ function MapPanel({
   return (
     <div className="absolute inset-x-0 bottom-0 max-h-[70vh] overflow-y-auto rounded-t-2xl bg-white p-6 shadow-lg ring-1 ring-zinc-200 sm:inset-y-0 sm:left-auto sm:right-0 sm:w-96 sm:max-h-none sm:rounded-none sm:rounded-l-2xl dark:bg-zinc-950 dark:ring-zinc-800">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{motif}</h2>
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{formatMotifTag(motif)}</h2>
         <button
           onClick={onClose}
           aria-label="Close"

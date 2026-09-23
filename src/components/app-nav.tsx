@@ -5,13 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 // Four top-level destinations, matching docs/product.md's nav list (Questions/Wonder, Discover,
-// Curiosity Map, Settings) — Ask = Wanderer, Shorts = Bored Explorer/Discover, Map = the
-// self-insight surface (docs/design/curiosity-map.md), Settings = appearance/account/feedback
-// (docs/decisions.md §20). Separate screens, not tabs on one screen (design brief decision,
-// docs/design/curious-shorts.md).
+// Curiosity Map, Settings) — Ask = Wanderer, Drift = Bored Explorer/Discover (renamed from
+// "Shorts" 2026-09-23 — too close to the Instagram/TikTok feature name), Map = the self-insight
+// surface (docs/design/curiosity-map.md), Settings = appearance/account/feedback (docs/
+// decisions.md §20). Separate screens, not tabs on one screen (design brief decision,
+// docs/design/curious-drift.md).
 const DESTINATIONS = [
   { href: "/", label: "Ask" },
-  { href: "/shorts", label: "Shorts" },
+  { href: "/drift", label: "Drift" },
   { href: "/map", label: "Map" },
   { href: "/settings", label: "Settings" },
 ] as const;
@@ -36,7 +37,7 @@ export function AppNav() {
             href={href}
             className={`rounded-full px-4 py-1.5 font-medium transition-colors ${
               pathname === href
-                ? "bg-white text-zinc-900 shadow dark:bg-zinc-900 dark:text-zinc-50"
+                ? "bg-white text-ink shadow dark:bg-zinc-900 dark:text-zinc-50"
                 : "text-zinc-500 dark:text-zinc-400"
             }`}
           >

@@ -17,7 +17,7 @@ There's a real Next.js codebase here now: the interpretation pipeline (`src/lib/
 
 This was built by Claude Code working directly in this folder — this README is catching up to that progress, since it had gone stale while the code moved fast. If you're picking this up, check `git log` and read the actual source before trusting this file's specifics — a stale README is worse than no README, and the discipline is supposed to be Claude Code keeps this current going forward (see `CLAUDE.md`'s documentation-ownership section), but that clearly needs to actually be invoked per real decision, not assumed automatic.
 
-Two newer decisions from a 2026-09-15 working session — Curious Shorts (a bite-sized recommendation feed) and content-type-routed thumbs feedback — are locked in `docs/decisions.md` §10-11 but not yet built. See "What's not decided yet" below for what's still blocking the next round of build.
+Two newer decisions from a 2026-09-15 working session — Drift (a bite-sized recommendation feed) and content-type-routed thumbs feedback — are locked in `docs/decisions.md` §10-11 but not yet built. See "What's not decided yet" below for what's still blocking the next round of build.
 
 Separately, the product thinking from the original ideation (what Curious is, the three learning contracts, the recommendation philosophy) has been carried forward, and a working session on 2026-09-13 closed out most of the open technical questions that were left unresolved — how depth gets selected, how the recommendation engine actually works, how Make It Stick evaluates someone's explanation, what metrics actually matter for a small beta, and how beta feedback gets collected. All of that is in `readme/decisions-explained.md`.
 
@@ -27,7 +27,7 @@ One structural change worth knowing about: the original plan involved building a
 
 The exact visual/design language and most frontend implementation details. How much of the tree/graph knowledge content to render at Gist vs. Explore depth. The AI provider is decided (defaults to Groq, swappable via `AI_PROVIDER` — see `src/lib/ai/provider.ts`), not re-evaluated against real cost/latency data yet but no longer blocking, and a Groq key is already in `.env.local`.
 
-A Supabase project does NOT exist yet — that's the current blocker. Nothing involving persistence, auth, the recommendation engine's candidate queries, or Curious Shorts can be built and validated until one exists and `supabase/schema.sql` has been run against it.
+A Supabase project does NOT exist yet — that's the current blocker. Nothing involving persistence, auth, the recommendation engine's candidate queries, or Drift can be built and validated until one exists and `supabase/schema.sql` has been run against it.
 
 ## Suggested first move
 

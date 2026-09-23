@@ -27,11 +27,11 @@ These are controls inside a curiosity, not top-level nav (top-level nav is: Ques
 
 See `decisions.md` §2 for how depth is actually selected (factoid pre-filter + metadata threshold — this mechanism didn't exist in the original vision and was designed in the 2026-09-13 session).
 
-## Curious Shorts
+## Drift
 
-A bite-sized, scrollable feed of recommended topics — a dedicated surface for the Bored Explorer persona (previously only implicit in "browses suggested topics"). Each short is a Get-the-Gist rendering of whatever the recommendation engine selected; "go deeper," "Make It Stick," and follow-ups are the same depth-switch mechanisms as the regular flow, just surfaced inline. No new content-generation mechanism — see `decisions.md` §10.
+A bite-sized, scrollable feed of recommended topics — a dedicated surface for the Bored Explorer persona (previously only implicit in "browses suggested topics"). Each card is a Get-the-Gist rendering of whatever the recommendation engine selected; "go deeper," "Make It Stick," and follow-ups are the same depth-switch mechanisms as the regular flow, just surfaced inline. No new content-generation mechanism — see `decisions.md` §10.
 
-Deliberately allows unbounded scroll (no hard cap), but success is measured only by the existing North Star (Curiosity Continuation Rate), never by shorts-viewed or session length — those are logged only as a canary/watch-only signal during beta, specifically so a future scroll cap can be an evidence-based decision later rather than a guess now. This sits close to the "not an infinite-content engagement machine" non-goal below by design; the tension is resolved by measurement discipline, not by a hard interface limit.
+Deliberately allows unbounded scroll (no hard cap), but success is measured only by the existing North Star (Curiosity Continuation Rate), never by drift-viewed or session length — those are logged only as a canary/watch-only signal during beta, specifically so a future scroll cap can be an evidence-based decision later rather than a guess now. This sits close to the "not an infinite-content engagement machine" non-goal below by design; the tension is resolved by measurement discipline, not by a hard interface limit.
 
 ## Differentiators (the actual "aha" moments)
 

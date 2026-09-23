@@ -84,6 +84,20 @@ export interface SlottedCandidates {
   wildcard: Candidate[];
 }
 
+// Looks up full candidate content for a known set of question ids — the "revisit what you
+// already scrolled through" path (docs/decisions.md §10 addendum), where the caller already
+// knows exactly which questions to re-render (from recommendation_log) rather than needing to
+// rank a pool. Same service-role/§14 reasoning as buildCandidatePools: most of these ids belong
+// to other users or seed content, so this can't go through the client's own RLS-scoped query.
+export async function fetchCandidatesByIds(admin: SupabaseClient, ids: string[]): Promise<Candidate[]> {
+  if (ids.length === 0) return [];
+  const { data } = await admin.from("questions").select(POOL_COLUMNS).in("id", ids);
+  const byId = new Map(((data ?? []) as unknown as PoolRow[]).map((row) => [row.id, toCandidate(row)]));
+  // Preserve the caller's id order (recommendation_log's shown_at desc) rather than whatever
+  // order Postgres happens to return .in() rows in.
+  return ids.map((id) => byId.get(id)).filter((c): c is Candidate => c !== undefined);
+}
+
 // Builds one ranked, deduplicated candidate list per slot for a user. Pure selection logic
 // only — callers decide how many of each to actually show (via bandit.assignSlots) and are
 // responsible for logging what was shown to recommendation_log.

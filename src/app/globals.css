@@ -9,26 +9,35 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f6f7;
+  --foreground: #212529;
+  /* Reference palette (TripGlide-style UI refresh, 2026-09-23): near-black ink for primary
+     surfaces/text, soft mist gray for the page background, pure white for cards — swapped in
+     to replace the flatter Tailwind zinc-900/zinc-50 pairing used across home/ask + nav. */
+  --ink: #212529;
+  --mist: #f5f6f7;
 }
 
 :root.dark {
   --background: #0a0a0a;
   --foreground: #ededed;
+  --ink: #f5f6f7;
+  --mist: #0a0a0a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-ink: var(--ink);
+  --color-mist: var(--mist);
+  --font-sans: var(--font-instrument-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-instrument-sans), Arial, Helvetica, sans-serif;
 }
 
 /* Curious Shorts headline face — docs/design/curious-shorts.md. Editorial serif, used only for

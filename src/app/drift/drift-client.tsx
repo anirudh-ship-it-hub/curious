@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { Interpretation, KnowledgeContent, MakeItStickEval } from "@/lib/ai/schema";
 import { AppNav } from "@/components/app-nav";
-import { KnowledgeContentView, MakeItStick } from "@/components/knowledge-view";
+import { KnowledgeContentView, MakeItStick, SaveButton, ThumbsButtons } from "@/components/knowledge-view";
 import { logDepthView } from "@/lib/log-depth-view";
 
 // Matches the inline shape GET /api/recommendations returns — Candidate (src/lib/recommend/
@@ -24,11 +24,11 @@ interface RecommendationItem {
   hasVisualPotential: boolean;
 }
 
-interface RecentlyExplored {
-  id: string;
-  question: string;
-  coreTakeaways: string[];
-}
+// Revisit items (docs/decisions.md §10 addendum) are full RecommendationItems, not a stripped
+// title-only shape — GET /api/recommendations now sources them from recommendation_log itself
+// (what was actually shown), so they render as the exact same re-expandable DriftCard someone
+// already scrolled past, not a bullet-point summary of it.
+type RecentlyExplored = RecommendationItem;
 
 type FeedState =
   | { status: "loading" }
@@ -36,12 +36,19 @@ type FeedState =
   | { status: "ready"; items: RecommendationItem[]; poolExhausted: false }
   | { status: "ready"; items: RecommendationItem[]; poolExhausted: true; recentlyExplored: RecentlyExplored[] };
 
+// While sitting on the caught-up screen, silently re-check once an hour in case the shared pool
+// grew (another beta user asked something new) — the underlying "never re-show the same item"
+// rule (docs/decisions.md §14 consequence, recommendations route.ts) doesn't change; this only
+// surfaces content that's genuinely new since the last check. Also exposed as a manual "Check
+// again" button so nobody has to leave a tab open for an hour to get the same effect.
+const POOL_RECHECK_INTERVAL_MS = 60 * 60 * 1000;
+
 // Pacing note ("why 6 at a time") localStorage key — a one-time, per-browser explanation, not
 // state that needs to persist reliably or sync across devices, so localStorage is the right
 // tool for it (not a DB column).
 const PACING_NOTE_SEEN_KEY = "curious-seen-pacing-note";
 
-export function ShortsClient({ name }: { name: string | null }) {
+export function DriftClient({ name }: { name: string | null }) {
   const [feed, setFeed] = useState<FeedState>({ status: "loading" });
   const [loadingMore, setLoadingMore] = useState(false);
   // How many items the FIRST fetch actually returned — not the server's target batch size
@@ -125,6 +132,32 @@ export function ShortsClient({ name }: { name: string | null }) {
     }
   }
 
+  const [checkingForMore, setCheckingForMore] = useState(false);
+
+  async function checkForMore() {
+    if (checkingForMore) return;
+    setCheckingForMore(true);
+    try {
+      const data = await fetchBatch();
+      if (data.poolExhausted) {
+        setFeed({ status: "ready", items: [], poolExhausted: true, recentlyExplored: data.recentlyExplored ?? [] });
+      } else {
+        setFeed({ status: "ready", items: data.recommendations, poolExhausted: false });
+      }
+    } catch {
+      // Silent — worst case the hourly recheck or the next manual click tries again.
+    } finally {
+      setCheckingForMore(false);
+    }
+  }
+
+  useEffect(() => {
+    if (feed.status !== "ready" || !feed.poolExhausted) return;
+    const interval = setInterval(checkForMore, POOL_RECHECK_INTERVAL_MS);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feed.status, feed.status === "ready" && feed.poolExhausted]);
+
   return (
     <div className="flex min-h-screen flex-col items-center bg-stone-50 px-4 pb-24 dark:bg-black">
       <AppNav />
@@ -133,7 +166,7 @@ export function ShortsClient({ name }: { name: string | null }) {
 
         {feed.status === "error" && (
           <p className="mt-10 text-center text-sm text-red-600">
-            Something went wrong loading Shorts. Try refreshing.
+            Something went wrong loading Drift. Try refreshing.
           </p>
         )}
 
@@ -141,7 +174,7 @@ export function ShortsClient({ name }: { name: string | null }) {
           <div className="space-y-10">
             {feed.items.map((item, i) => (
               <Fragment key={item.recommendationId}>
-                <ShortCard item={item} />
+                <DriftCard item={item} />
                 {showPacingNote && firstBatchLength !== null && firstBatchLength > 0 && i === firstBatchLength - 1 && (
                   <PacingNote
                     count={firstBatchLength}
@@ -156,7 +189,14 @@ export function ShortsClient({ name }: { name: string | null }) {
                 )}
               </Fragment>
             ))}
-            {feed.poolExhausted && <CaughtUpCard recentlyExplored={feed.recentlyExplored} name={name} />}
+            {feed.poolExhausted && (
+              <CaughtUpCard
+                recentlyExplored={feed.recentlyExplored}
+                name={name}
+                onCheckForMore={checkForMore}
+                checking={checkingForMore}
+              />
+            )}
             {!feed.poolExhausted && <div ref={sentinelRef} className="h-1" />}
             {!feed.poolExhausted && loadingMore && <FeedSkeleton />}
           </div>
@@ -169,7 +209,7 @@ export function ShortsClient({ name }: { name: string | null }) {
 // Shown once ever, right where a person naturally reaches the first pause point — explains
 // the batch pacing in the product's own voice ("User time is sacred... don't optimize for
 // screen time", docs/product.md locked principles) rather than leaving it as a silent backend
-// detail. No dismiss button by design (matches the Shorts design brief's "no urgency cues, no
+// detail. No dismiss button by design (matches the Drift design brief's "no urgency cues, no
 // chrome competing with content") — it just marks itself seen once rendered and never repeats.
 function PacingNote({ count, onShown }: { count: number; onShown: () => void }) {
   useEffect(() => {
@@ -195,7 +235,7 @@ function FeedSkeleton() {
   );
 }
 
-function ShortCard({ item }: { item: RecommendationItem }) {
+function DriftCard({ item }: { item: RecommendationItem }) {
   const [expanded, setExpanded] = useState(false);
   const [thumbsUp, setThumbsUp] = useState<boolean | null>(null);
   const [followUps, setFollowUps] = useState<{ question: string; result: FullFollowUpResult | null }[]>([]);
@@ -293,21 +333,9 @@ function ShortCard({ item }: { item: RecommendationItem }) {
         >
           {expanded ? "Collapse" : "Go deeper"}
         </button>
-        <div className="flex gap-3 text-stone-300 dark:text-stone-600">
-          <button
-            onClick={() => giveThumbs(true)}
-            aria-label="Thumbs up"
-            className={thumbsUp === true ? "text-stone-700 dark:text-stone-200" : "hover:text-stone-500"}
-          >
-            ▲
-          </button>
-          <button
-            onClick={() => giveThumbs(false)}
-            aria-label="Thumbs down"
-            className={thumbsUp === false ? "text-stone-700 dark:text-stone-200" : "hover:text-stone-500"}
-          >
-            ▼
-          </button>
+        <div className="flex items-center gap-2">
+          <ThumbsButtons value={thumbsUp} onChange={giveThumbs} />
+          <SaveButton questionId={item.id} />
         </div>
       </div>
 
@@ -400,29 +428,49 @@ interface FullFollowUpResult {
   content?: KnowledgeContent;
 }
 
-function CaughtUpCard({ recentlyExplored, name }: { recentlyExplored: RecentlyExplored[]; name: string | null }) {
+function CaughtUpCard({
+  recentlyExplored,
+  name,
+  onCheckForMore,
+  checking,
+}: {
+  recentlyExplored: RecentlyExplored[];
+  name: string | null;
+  onCheckForMore: () => void;
+  checking: boolean;
+}) {
   return (
-    <div className="rounded-2xl bg-white p-10 text-center shadow-sm ring-1 ring-stone-200/70 dark:bg-zinc-950 dark:ring-zinc-800">
-      <p className="font-editorial text-2xl italic text-stone-900 dark:text-stone-100">
-        You&apos;re caught up with learning for today{name ? `, ${name}` : ""}.
-      </p>
+    <div>
+      <div className="rounded-2xl bg-white p-10 text-center shadow-sm ring-1 ring-stone-200/70 dark:bg-zinc-950 dark:ring-zinc-800">
+        <p className="font-editorial text-2xl italic text-stone-900 dark:text-stone-100">
+          You&apos;re caught up with learning for today{name ? `, ${name}` : ""}.
+        </p>
+        <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-stone-500 dark:text-stone-400">
+          Paced to how long it takes to sit with an idea, not how long we can keep you scrolling —
+          more shows up as the group asks new things. Try explaining one below from memory before
+          you go.
+        </p>
+        <button
+          onClick={onCheckForMore}
+          disabled={checking}
+          className="mt-6 rounded-full border border-stone-300 px-4 py-2 text-xs font-medium text-stone-600 hover:border-stone-400 hover:text-stone-800 disabled:opacity-50 dark:border-zinc-700 dark:text-stone-400 dark:hover:text-stone-200"
+        >
+          {checking ? "Checking…" : "Check for anything new"}
+        </button>
+      </div>
+
       {recentlyExplored.length > 0 && (
-        <div className="mx-auto mt-6 max-w-sm text-left">
-          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-stone-400">
-            Today you looked at
+        <div className="mt-10">
+          <p className="mb-4 text-xs font-medium uppercase tracking-wide text-stone-400">
+            Revisit what you looked at today
           </p>
-          <ul className="space-y-2">
-            {recentlyExplored.map((r) => (
-              <li key={r.id} className="text-sm text-stone-600 dark:text-stone-400">
-                · {r.question}
-              </li>
+          <div className="space-y-10">
+            {recentlyExplored.map((item) => (
+              <DriftCard key={item.recommendationId} item={item} />
             ))}
-          </ul>
+          </div>
         </div>
       )}
-      <p className="mt-6 text-sm leading-relaxed text-stone-500 dark:text-stone-400">
-        Try explaining one of these out loud, from memory, before you come back for more.
-      </p>
     </div>
   );
 }

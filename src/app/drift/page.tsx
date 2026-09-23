@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ShortsClient } from "./shorts-client";
+import { DriftClient } from "./drift-client";
 
-export default async function Shorts() {
+export default async function Drift() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -11,5 +11,5 @@ export default async function Shorts() {
   if (!user) redirect("/login");
 
   const name = typeof user.user_metadata?.name === "string" ? user.user_metadata.name : null;
-  return <ShortsClient name={name} />;
+  return <DriftClient name={name} />;
 }

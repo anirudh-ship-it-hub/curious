@@ -118,6 +118,24 @@ create table content_feedback (
 
 create index content_feedback_user_id_idx on content_feedback (user_id, created_at desc);
 
+-- Explicit "save for later" bookmark (added 2026-09-23) — deliberately separate from
+-- content_feedback: a save is "I want this again," not a quality judgment, and separate from
+-- recommendation_log: it must survive independently of engagement/bandit bookkeeping and cover
+-- self-asked questions too, which never get a recommendation_log row at all. question_id is
+-- intentionally NOT restricted to rows the saving user owns — most saves will be recommended/
+-- seed content (docs/decisions.md §14: read access for that content still goes through the
+-- service-role recommendations-style path, only the save/unsave row itself is a plain per-user
+-- table). One row per (user, question) — saving is a toggle, not an event log.
+create table saved_questions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  question_id uuid not null references questions (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (user_id, question_id)
+);
+
+create index saved_questions_user_id_idx on saved_questions (user_id, created_at desc);
+
 -- Which depth (Gist/Explore/Make It Stick) a user actually viewed for a given question — the
 -- "depth-selection distribution" diagnostic KPI (docs/decisions.md §5). Without this there is
 -- no stored signal for what was actually looked at, only what the AI recommended
@@ -155,6 +173,7 @@ alter table motif_counts enable row level security;
 alter table recommendation_log enable row level security;
 alter table content_feedback enable row level security;
 alter table depth_views enable row level security;
+alter table saved_questions enable row level security;
 
 -- questions: a client can read ONLY its own rows — nothing else, no carve-out, not even
 -- source='seed'. One rule, no exceptions to remember later (docs/decisions.md §14).
@@ -204,4 +223,9 @@ create policy "users manage their own depth views" on depth_views
 -- beta_feedback: insert/read own rows only — no client needs to read anyone else's feedback.
 alter table beta_feedback enable row level security;
 create policy "users manage their own feedback" on beta_feedback
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- saved_questions: strictly per-user — the bookmark relationship itself, not the question
+-- content (which flows through the service-role path per §14 when it isn't the user's own).
+create policy "users manage their own saved questions" on saved_questions
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { computeEpsilon, assignSlots, computeReward } from "@/lib/recommend/bandit";
-import { buildCandidatePools, fillSlots } from "@/lib/recommend/candidates";
+import { buildCandidatePools, fetchCandidatesByIds, fillSlots } from "@/lib/recommend/candidates";
 import { incrementMotifCounts } from "@/lib/recommend/motif-counts";
 
 // §11/§19: sized relative to the organic unit that already exists — one asked question
@@ -65,10 +65,15 @@ function computeDefaultBatchSize(): number {
 
 const DEFAULT_BATCH_SIZE = computeDefaultBatchSize();
 
-// "Recently explored" window for the pool-exhaustion nudge (docs/decisions.md §10 addendum) —
-// a rolling 24h, not a calendar-day boundary, so late-night use doesn't get cut off oddly.
-const RECENTLY_EXPLORED_WINDOW_MS = 24 * 60 * 60 * 1000;
-const RECENTLY_EXPLORED_LIMIT = 5;
+// "Revisit" window for the pool-exhaustion screen (docs/decisions.md §10 addendum) — a rolling
+// 24h, not a calendar-day boundary, so late-night use doesn't get cut off oddly. Sourced from
+// recommendation_log (what was actually shown to THIS user), not the questions table, so the
+// caught-up screen can re-render the real cards someone scrolled through — including seed/other
+// users' content — as full, re-expandable cards (2026-09-23 revision; previously only surfaced
+// the user's own self-asked questions from the same window, which undercounted what Drift
+// itself had shown).
+const REVISIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const REVISIT_LIMIT = 20;
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -115,23 +120,38 @@ export async function GET(request: Request) {
     const poolExhausted = pools.relevant.length + pools.adjacent.length + pools.wildcard.length === 0;
 
     if (poolExhausted) {
-      const { data: recentlyExplored } = await supabase
-        .from("questions")
-        .select("id, question, core_takeaways")
+      // Own client (RLS-scoped) is enough here — recommendation_log is strictly per-user, no
+      // service-role needed to read which rows are "mine" and when they were shown.
+      const { data: shownRecently } = await supabase
+        .from("recommendation_log")
+        .select("id, question_id, slot, shown_at")
         .eq("user_id", user.id)
-        .gte("created_at", new Date(Date.now() - RECENTLY_EXPLORED_WINDOW_MS).toISOString())
-        .order("created_at", { ascending: false })
-        .limit(RECENTLY_EXPLORED_LIMIT);
+        .gte("shown_at", new Date(Date.now() - REVISIT_WINDOW_MS).toISOString())
+        .order("shown_at", { ascending: false })
+        .limit(REVISIT_LIMIT);
+
+      const revisitRows = shownRecently ?? [];
+      // The actual question content mostly belongs to other users/seed data, so it goes through
+      // the same service-role lookup buildCandidatePools uses (docs/decisions.md §14) — never a
+      // direct client query for content this user doesn't own.
+      const revisitCandidates = await fetchCandidatesByIds(
+        admin,
+        revisitRows.map((r) => r.question_id as string)
+      );
+      const candidateById = new Map(revisitCandidates.map((c) => [c.id, c]));
+      const recentlyExplored = revisitRows
+        .map((r) => {
+          const candidate = candidateById.get(r.question_id as string);
+          if (!candidate) return null; // question was deleted since being shown — skip, don't crash the screen
+          return { recommendationId: r.id, slot: r.slot, ...candidate };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
 
       return NextResponse.json({
         recommendations: [],
         poolExhausted: true,
         batchSize: limit,
-        recentlyExplored: (recentlyExplored ?? []).map((r) => ({
-          id: r.id,
-          question: r.question,
-          coreTakeaways: r.core_takeaways,
-        })),
+        recentlyExplored,
       });
     }
 

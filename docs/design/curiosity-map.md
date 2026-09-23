@@ -10,7 +10,7 @@ is that "actual Design Brief" the §7 note said had to happen before committing 
    an analytics panel. No leaderboards, no streaks, no "level up" framing (§7's own guardrail:
    must read as discovered truth about the user, never an earned reward).
 
-2. **Information architecture** — A third top-level destination alongside Ask and Shorts
+2. **Information architecture** — A third top-level destination alongside Ask and Drift
    (`/map`), added to `AppNav`. Matches `docs/product.md`'s nav list (Questions/Wonder,
    Discover, Curiosity Map, Settings) — this is the first build of that third item.
 

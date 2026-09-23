@@ -1,4 +1,4 @@
-# Design Brief — Curious Shorts
+# Design Brief — Drift
 
 First design brief actually run through `docs/design/framework.md` (the ask-a-question screen
 predates this discipline — its styling is explicitly marked placeholder throughout the code).
@@ -10,7 +10,7 @@ it live.
    counters the "engagement-machine" tension `docs/decisions.md` §10 already named as a risk.
    No urgency cues: no autoplay countdowns, no streak/badge chrome, no red notification dots.
 
-2. **Information architecture** — A separate top-level destination (`/shorts`), not a tab on
+2. **Information architecture** — A separate top-level destination (`/drift`), not a tab on
    the ask screen. Matches the Wanderer (ask) vs. Bored Explorer (browse) split already drawn
    in `docs/product.md`. A small persistent nav (`AppNav`) switches between the two; added to
    both screens since neither had one before.
@@ -52,6 +52,6 @@ it live.
    staying a fixed max-width.
 
 **What's still genuinely open, not resolved by this brief**: exactly how much of a tree/graph's
-depth to show at Gist vs. Explore (§12's own still-open item) — Shorts sidesteps it for now by
+depth to show at Gist vs. Explore (§12's own still-open item) — Drift sidesteps it for now by
 using `coreTakeaways` as the gist content (already-locked, unambiguous data) rather than a
 partial tree/graph render. Revisit together once §12's open item is resolved generally.

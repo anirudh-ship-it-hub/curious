@@ -4,17 +4,33 @@ import { useState } from "react";
 import { AppNav } from "@/components/app-nav";
 import { useTheme, type ThemePreference } from "@/components/theme-provider";
 import { createClient } from "@/lib/supabase/client";
+import { OnboardingTour } from "@/components/onboarding-tour";
 
 const MIN_PASSWORD_LENGTH = 8;
 
 export function SettingsClient({ email, initialName }: { email: string; initialName: string }) {
+  const [tourOpen, setTourOpen] = useState(false);
+
   return (
     <div className="flex min-h-screen flex-col items-center bg-zinc-50 px-4 pb-16 dark:bg-black">
       <AppNav />
+      {/* A manual replay, not first-run — deliberately doesn't touch the "seen" flag that
+          gates the automatic first-login tour (home-client.tsx owns that). */}
+      <OnboardingTour open={tourOpen} onClose={() => setTourOpen(false)} />
       <main className="w-full max-w-xl pt-10">
-        <h1 className="mb-8 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Settings
-        </h1>
+        <div className="mb-8 flex items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            Settings
+          </h1>
+          <button
+            onClick={() => setTourOpen(true)}
+            aria-label="Replay the intro tour"
+            title="Replay the intro tour"
+            className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold text-zinc-400 ring-1 ring-zinc-300 hover:text-zinc-700 dark:text-zinc-500 dark:ring-zinc-700 dark:hover:text-zinc-200"
+          >
+            i
+          </button>
+        </div>
 
         <AppearanceSection />
         <AccountSection email={email} initialName={initialName} />
@@ -205,8 +221,7 @@ function FeedbackSection() {
   return (
     <Section title="Feedback">
       <p className="mb-3 text-sm text-zinc-500 dark:text-zinc-400">
-        Something specific and pointed — a bug, a confusing moment, an idea. For anything else,
-        the WhatsApp group is still the best place.
+        Something specific and pointed — a bug, a confusing moment, an idea.
       </p>
       <form onSubmit={submit} className="flex flex-col gap-2">
         <textarea

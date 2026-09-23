@@ -4,10 +4,19 @@ import { useEffect, useState } from "react";
 import type { MakeItStickEval } from "@/lib/ai/schema";
 import type { InterpretResult } from "@/lib/ai/interpret";
 import { AppNav } from "@/components/app-nav";
-import { ARCHETYPE_LABELS, KnowledgeContentView, MakeItStick } from "@/components/knowledge-view";
+import { ARCHETYPE_LABELS, KnowledgeContentView, MakeItStick, SaveButton, ThumbsButtons } from "@/components/knowledge-view";
+import { OnboardingTour } from "@/components/onboarding-tour";
 import { logDepthView } from "@/lib/log-depth-view";
+import { formatMotifTag } from "@/lib/ai/motifs";
 
 type Depth = "gist" | "explore" | "stick";
+
+// Shown once ever, right after first login (upgraded 2026-09-24 from a single dismissible note
+// to the full OnboardingTour — a nav hint alone didn't carry the actual ideology or explain why
+// Make It Stick is worth the detour, both explicitly flagged). Also replayable anytime from a
+// Settings info button (settings-client.tsx), which is why the "seen" flag lives here rather
+// than inside OnboardingTour itself — a manual replay must NOT touch this key.
+const TOUR_SEEN_KEY = "curious-seen-onboarding-tour";
 
 // The API adds `id` (the persisted question's row id) to "full" results — see
 // src/app/api/interpret/route.ts. Not part of the pure interpret() return type since that
@@ -30,6 +39,23 @@ export function HomeClient({ name }: { name: string | null }) {
   const [mistStatus, setMistStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [mistResult, setMistResult] = useState<MakeItStickEval | null>(null);
   const [thumbsUp, setThumbsUp] = useState<boolean | null>(null);
+
+  const [showTour, setShowTour] = useState(false);
+  useEffect(() => {
+    try {
+      setShowTour(!localStorage.getItem(TOUR_SEEN_KEY));
+    } catch {
+      setShowTour(false); // private browsing / blocked storage — just skip the tour
+    }
+  }, []);
+  function closeTour() {
+    setShowTour(false);
+    try {
+      localStorage.setItem(TOUR_SEEN_KEY, "1");
+    } catch {
+      // ignore — worst case it shows again next session
+    }
+  }
 
   function giveThumbs(value: boolean) {
     if (result?.kind !== "full" || !result.id) return;
@@ -85,16 +111,22 @@ export function HomeClient({ name }: { name: string | null }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-zinc-50 px-4 pb-16 dark:bg-black">
+    <div className="flex min-h-screen flex-col items-center bg-mist px-4 pb-16">
       <AppNav />
-      <main className="w-full max-w-2xl pt-10">
-        <div className="mb-10 text-center relative">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+      <OnboardingTour open={showTour} onClose={closeTour} />
+      <main className="w-full max-w-2xl pt-8">
+        <div className="mb-6 flex items-end justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-ink">
+              {name ? `Hey, ${name}` : "Hey there"}
+            </h1>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Go from zero to one on whatever you&apos;re wondering about.
+            </p>
+          </div>
+          <span className="hidden rounded-full bg-ink px-3 py-1 text-xs font-medium text-mist sm:inline-block">
             Curious
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {name ? `Hey ${name} — ` : ""}Go from zero to one on whatever you&apos;re wondering about.
-          </p>
+          </span>
         </div>
 
         <form
@@ -102,18 +134,27 @@ export function HomeClient({ name }: { name: string | null }) {
             e.preventDefault();
             ask(question);
           }}
-          className="flex gap-2"
+          className="flex items-center gap-2 rounded-full border border-zinc-200 bg-white p-1.5 pl-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
         >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 20 20"
+            fill="none"
+            className="h-4 w-4 flex-none text-zinc-400"
+          >
+            <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.6" />
+            <path d="M17 17L13.5 13.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
           <input
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="What are you curious about?"
-            className="flex-1 rounded-full border border-zinc-300 bg-white px-5 py-3 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            className="flex-1 bg-transparent py-2 text-sm text-ink outline-none placeholder:text-zinc-400 dark:text-zinc-100"
           />
           <button
             type="submit"
             disabled={status === "loading"}
-            className="rounded-full bg-zinc-900 px-6 py-3 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+            className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-mist disabled:opacity-50"
           >
             {status === "loading" ? "Thinking…" : "Ask"}
           </button>
@@ -124,7 +165,7 @@ export function HomeClient({ name }: { name: string | null }) {
         )}
 
         {result?.kind === "safety" && (
-          <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6 dark:border-slate-700 dark:bg-slate-900">
+          <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-6 dark:border-slate-700 dark:bg-slate-900">
             <p className="text-base leading-relaxed text-slate-700 dark:text-slate-300">
               {result.message}
             </p>
@@ -132,11 +173,11 @@ export function HomeClient({ name }: { name: string | null }) {
         )}
 
         {result?.kind === "factoid" && (
-          <div className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="mt-8 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
               Quick answer
             </p>
-            <p className="text-lg text-zinc-900 dark:text-zinc-100">{result.answer}</p>
+            <p className="text-lg text-ink">{result.answer}</p>
           </div>
         )}
 
@@ -188,7 +229,7 @@ function FullResult({
   return (
     <div className="mt-8">
       <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-        <span className="rounded-full bg-zinc-900 px-3 py-1 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900">
+        <span className="rounded-full bg-ink px-3 py-1 font-medium text-mist">
           {ARCHETYPE_LABELS[result.archetype]}
         </span>
         {result.motifTags.map((tag) => (
@@ -196,27 +237,15 @@ function FullResult({
             key={tag}
             className="rounded-full border border-zinc-300 px-3 py-1 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
           >
-            {tag}
+            {formatMotifTag(tag)}
           </span>
         ))}
         <span className="ml-auto text-zinc-400">
           complexity {result.complexity} · importance {result.importance} · difficulty {result.difficulty}
         </span>
-        <div className="flex gap-2 text-zinc-300 dark:text-zinc-600">
-          <button
-            onClick={() => onThumbs(true)}
-            aria-label="Thumbs up"
-            className={thumbsUp === true ? "text-zinc-700 dark:text-zinc-200" : "hover:text-zinc-500"}
-          >
-            ▲
-          </button>
-          <button
-            onClick={() => onThumbs(false)}
-            aria-label="Thumbs down"
-            className={thumbsUp === false ? "text-zinc-700 dark:text-zinc-200" : "hover:text-zinc-500"}
-          >
-            ▼
-          </button>
+        <div className="flex items-center gap-2">
+          <ThumbsButtons value={thumbsUp} onChange={onThumbs} />
+          {result.id && <SaveButton questionId={result.id} />}
         </div>
       </div>
 
@@ -227,7 +256,7 @@ function FullResult({
             onClick={() => setActiveDepth(d)}
             className={`flex-1 rounded-full px-4 py-2 font-medium transition-colors ${
               activeDepth === d
-                ? "bg-white text-zinc-900 shadow dark:bg-zinc-900 dark:text-zinc-50"
+                ? "bg-white text-ink shadow dark:bg-zinc-900 dark:text-zinc-50"
                 : "text-zinc-500 dark:text-zinc-400"
             }`}
           >
@@ -241,7 +270,7 @@ function FullResult({
         ))}
       </div>
 
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         {activeDepth === "gist" && (
           <ul className="space-y-2">
             {result.coreTakeaways.map((t, i) => (
@@ -307,7 +336,47 @@ function FullResult({
           />
         )}
       </div>
+
+      <FollowUpBox onAsk={onAsk} parentQuestionId={result.id} />
     </div>
+  );
+}
+
+// A visible, always-there place to continue the thread — previously the only way to follow up
+// was clicking one of the AI's OWN predicted questions under Explore; there was nothing for a
+// question of your own, and nothing visible at all from Gist/Make It Stick (flagged 2026-09-23:
+// "not very evident where to add follow up after asking a question"). Sits right under the
+// result regardless of which depth tab is open.
+function FollowUpBox({ onAsk, parentQuestionId }: { onAsk: (q: string, parentQuestionId?: string) => void; parentQuestionId?: string }) {
+  const [text, setText] = useState("");
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!text.trim()) return;
+        onAsk(text, parentQuestionId);
+        setText("");
+      }}
+      className="mt-4 flex items-center gap-2 rounded-full border border-zinc-200 bg-white py-1 pl-4 pr-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+    >
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Ask a follow-up…"
+        className="flex-1 bg-transparent py-2 text-sm text-ink outline-none placeholder:text-zinc-400 dark:text-zinc-100"
+      />
+      <button
+        type="submit"
+        disabled={!text.trim()}
+        aria-label="Ask follow-up"
+        className="rounded-full bg-ink p-2 text-mist disabled:opacity-40"
+      >
+        <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M4 10h12M10 4l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+    </form>
   );
 }
 

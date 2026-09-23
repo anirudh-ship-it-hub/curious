@@ -10,6 +10,5 @@ export default async function CuriosityMapPage() {
 
   if (!user) redirect("/login");
 
-  const name = typeof user.user_metadata?.name === "string" ? user.user_metadata.name : null;
-  return <MapClient name={name} />;
+  return <MapClient />;
 }

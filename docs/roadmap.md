@@ -6,7 +6,7 @@ Original target dates below were set 2026-08-11 and have not been re-validated a
 
 ## Current status (as of 2026-09-23, informal — not a full PMO pass)
 
-**Built and live-validated**: core AI pipeline (incl. safety pre-filter + refusal backstop), the Ask flow (now with editorial-prose Explore rendering and a real Gist), the recommendation engine (incl. windowed motif-recency and a reasoned thumbs magnitude, §19), Curious Shorts, thumbs feedback (on both Ask and Shorts), beta metrics instrumentation (`npm run metrics`), a first version of the Curiosity Map (§7), tuned depth-selection thresholds (§2), a derived recommendation batch size (§18), Settings (§20 — appearance/theme, account details, a scoped-reversal feedback box), and now real signup + login (§21).
+**Built and live-validated**: core AI pipeline (incl. safety pre-filter + refusal backstop), the Ask flow (now with editorial-prose Explore rendering and a real Gist), the recommendation engine (incl. windowed motif-recency and a reasoned thumbs magnitude, §19), Drift, thumbs feedback (on both Ask and Drift), beta metrics instrumentation (`npm run metrics`), a first version of the Curiosity Map (§7), tuned depth-selection thresholds (§2), a derived recommendation batch size (§18), Settings (§20 — appearance/theme, account details, a scoped-reversal feedback box), and now real signup + login (§21).
 
 **Auth: closed out for real users, one piece still deliberately deferred.** Signup and login are unblocked and live-validated via actual browser form interaction — "Confirm email" is off (a confirmed, accepted trade-off for a small friends-only beta), so a real friend can sign up and start using Curious today with zero email involved. Password reset still needs real email delivery, which still only reaches the founder's own inbox (Resend sandbox sender) — interim answer is a manual dashboard reset if that rare case comes up; real SMTP (a domain, or Brevo/SendGrid single-sender verification) is the actual fix whenever it happens, but nothing is blocked on it anymore for normal use.
 
@@ -35,7 +35,7 @@ Purpose: reduce uncertainty, not judge productivity.
 
 ## Beta feedback (decisions.md §6, amended by §20)
 
-Passive behavioral metrics + a persistent thumbs up/down on any content (routed differently for recommended vs. self-asked content, `decisions.md` §11) + WhatsApp group for spontaneous feedback + personal weekly check-in per beta user folded into the Sunday PMO ritual, **plus** a plain open-text feedback box in Settings (§20, added 2026-09-22, a deliberate and scoped reversal of §6's original "no in-app feedback infrastructure" — a single always-available box for something specific and pointed, not the rating/survey system §6 was avoiding). Still no rating widgets, comment systems, or surveys.
+Passive behavioral metrics + a persistent thumbs up/down on any content (routed differently for recommended vs. self-asked content, `decisions.md` §11) + personal weekly check-in per beta user folded into the Sunday PMO ritual, **plus** a plain open-text feedback box in Settings (§20, added 2026-09-22, a deliberate and scoped reversal of §6's original "no in-app feedback infrastructure" — a single always-available box for something specific and pointed, not the rating/survey system §6 was avoiding). The originally-planned WhatsApp group (§6) was dropped 2026-09-23 without ever being created — the feedback box is the sole spontaneous-feedback channel now, not a supplement to it. Still no rating widgets, comment systems, or surveys.
 
 ## Change history
 
