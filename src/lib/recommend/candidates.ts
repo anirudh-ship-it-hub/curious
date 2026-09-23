@@ -107,7 +107,7 @@ export async function buildCandidatePools(
   alreadyShownIds: string[],
   random: () => number = Math.random
 ): Promise<SlottedCandidates> {
-  const [{ data: motifRows }, { data: recentOwn }, { data: poolRows }] = await Promise.all([
+  const [{ data: motifRows }, { data: recentOwn }, { data: poolRows }, { data: shownRows }] = await Promise.all([
     admin
       .from("motif_counts")
       .select("motif, count")
@@ -129,16 +129,26 @@ export async function buildCandidatePools(
       .or(`user_id.is.null,user_id.neq.${userId}`)
       .order("created_at", { ascending: false })
       .limit(POOL_FETCH_CAP),
+    // Text of what's already been shown to this user (2026-09-25 fix, round 2 — the first
+    // dedup pass only caught duplicate text WITHIN one pool query; it still let through a
+    // duplicate-text row from a DIFFERENT session, since only ids were ever excluded, never
+    // text, across time. "same old repeated stuff" was this gap, not the first one. Skipped
+    // entirely for a fresh alreadyShownIds=[] user rather than sending a doomed .in() call.
+    alreadyShownIds.length > 0
+      ? admin.from("questions").select("question").in("id", alreadyShownIds)
+      : Promise.resolve({ data: [] as { question: string }[] }),
   ]);
 
   const excludeIds = new Set(alreadyShownIds);
-  // Dedupe by normalized question text (2026-09-25 fix — real beta data: two different users,
-  // and once the same user twice an hour apart, all independently asked "game theory," which
-  // showed up in Drift as three separately-worded-identical cards. The per-user "never re-show
-  // the SAME row" rule (§14) was working correctly — this is a different problem, near-duplicate
-  // CONTENT across different rows in the shared pool, which that rule was never meant to catch.
-  // Keeps the first (newest, since poolRows is already created_at desc) row per unique text.
-  const seenText = new Set<string>();
+  // Dedupe by normalized question text (2026-09-25) — real beta data: two different users, and
+  // once the same user twice an hour apart, all independently asked "game theory," which showed
+  // up in Drift as three separately-worded-identical cards. The per-user "never re-show the SAME
+  // row" rule (§14) was working correctly — this is a different problem, near-duplicate CONTENT
+  // across different rows, which that rule was never meant to catch. Seeded with already-shown
+  // TEXT (not just ids) so a not-yet-shown row can't slip through just because a different row
+  // with the same text was shown in an earlier session. Within a single pool, keeps the first
+  // (newest, since poolRows is already created_at desc) row per unique text.
+  const seenText = new Set((shownRows ?? []).map((r) => r.question.trim().toLowerCase()));
   const pool: Candidate[] = ((poolRows ?? []) as unknown as PoolRow[])
     .map(toCandidate)
     .filter((c) => !excludeIds.has(c.id))

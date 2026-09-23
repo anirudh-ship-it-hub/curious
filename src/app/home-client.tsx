@@ -238,22 +238,30 @@ function FullResult({
         {result.id && <SaveButton questionId={result.id} />}
       </div>
 
+      {/* Short labels + a dot instead of the word "recommended" — "Get the Gist"/"Make It
+          Stick" plus that inline text badge were wrapping onto 2-3 lines each in a 3-way
+          equal-width row on real phones (flagged 2026-09-25, live screenshot). The full names
+          are still used everywhere else (headings, the onboarding tour); this is scoped to the
+          tight tab control only. */}
       <div className="mb-4 flex gap-1 rounded-full bg-zinc-200/70 p-1 text-sm dark:bg-zinc-800/70">
         {(["gist", "explore", "stick"] as Depth[]).map((d) => (
           <button
             key={d}
             onClick={() => setActiveDepth(d)}
-            className={`flex-1 rounded-full px-4 py-2 font-medium transition-colors ${
+            className={`flex-1 whitespace-nowrap rounded-full px-2 py-2 font-medium transition-colors sm:px-4 ${
               activeDepth === d
                 ? "bg-white text-ink shadow dark:bg-zinc-900 dark:text-zinc-50"
                 : "text-zinc-500 dark:text-zinc-400"
             }`}
           >
-            {d === "gist" && "Get the Gist"}
+            {d === "gist" && "Gist"}
             {d === "explore" && "Explore"}
-            {d === "stick" && "Make It Stick"}
+            {d === "stick" && "Stick"}
             {result.depthRecommendation === d && (
-              <span className="ml-1 text-[10px] opacity-60">recommended</span>
+              <span
+                aria-label="Recommended depth"
+                className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle"
+              />
             )}
           </button>
         ))}
