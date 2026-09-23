@@ -159,23 +159,39 @@ export function DriftClient({ name }: { name: string | null }) {
   }, [feed.status, feed.status === "ready" && feed.poolExhausted]);
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-stone-50 px-4 pb-24 dark:bg-black">
+    <div className="flex h-screen flex-col overflow-hidden bg-stone-50 dark:bg-black">
       <AppNav />
-      <main className="w-full max-w-xl pt-10">
-        {feed.status === "loading" && <FeedSkeleton />}
 
-        {feed.status === "error" && (
-          <p className="mt-10 text-center text-sm text-red-600">
+      {feed.status === "loading" && (
+        <div className="flex flex-1 items-center justify-center px-4">
+          <div className="w-full max-w-xl">
+            <FeedSkeleton />
+          </div>
+        </div>
+      )}
+
+      {feed.status === "error" && (
+        <div className="flex flex-1 items-center justify-center px-4">
+          <p className="text-center text-sm text-red-600">
             Something went wrong loading Drift. Try refreshing.
           </p>
-        )}
+        </div>
+      )}
 
-        {feed.status === "ready" && (
-          <div className="space-y-10">
-            {feed.items.map((item, i) => (
-              <Fragment key={item.recommendationId}>
+      {feed.status === "ready" && (
+        // One reading chunk fills the screen, scroll snaps to the next like turning a page —
+        // not a continuous list with two half-visible cards at once (flagged 2026-09-24, live
+        // screenshot: "think of it like Instagram Reels... the touch scroll should feel like a
+        // page turn"). snap-always (scroll-snap-stop) matters as much as snap-mandatory here:
+        // without it, a fast flick can sail straight past a card instead of stopping on it.
+        <div className="flex-1 snap-y snap-mandatory overflow-y-auto overscroll-contain">
+          {feed.items.map((item, i) => (
+            <Fragment key={item.recommendationId}>
+              <Page>
                 <DriftCard item={item} />
-                {showPacingNote && firstBatchLength !== null && firstBatchLength > 0 && i === firstBatchLength - 1 && (
+              </Page>
+              {showPacingNote && firstBatchLength !== null && firstBatchLength > 0 && i === firstBatchLength - 1 && (
+                <Page>
                   <PacingNote
                     count={firstBatchLength}
                     onShown={() => {
@@ -186,23 +202,51 @@ export function DriftClient({ name }: { name: string | null }) {
                       }
                     }}
                   />
-                )}
-              </Fragment>
-            ))}
-            {feed.poolExhausted && (
-              <CaughtUpCard
-                recentlyExplored={feed.recentlyExplored}
-                name={name}
-                onCheckForMore={checkForMore}
-                checking={checkingForMore}
-              />
-            )}
-            {!feed.poolExhausted && <div ref={sentinelRef} className="h-1" />}
-            {!feed.poolExhausted && loadingMore && <FeedSkeleton />}
-          </div>
-        )}
-      </main>
+                </Page>
+              )}
+            </Fragment>
+          ))}
+
+          {feed.poolExhausted && (
+            <>
+              <Page>
+                <CaughtUpMessage name={name} onCheckForMore={checkForMore} checking={checkingForMore} />
+              </Page>
+              {feed.recentlyExplored.map((item, i) => (
+                <Page key={item.recommendationId}>
+                  {i === 0 && (
+                    <p className="mb-4 text-xs font-medium uppercase tracking-wide text-stone-400">
+                      Revisit what you looked at today
+                    </p>
+                  )}
+                  <DriftCard item={item} />
+                </Page>
+              ))}
+            </>
+          )}
+
+          {!feed.poolExhausted && <div ref={sentinelRef} className="h-1" />}
+          {!feed.poolExhausted && loadingMore && (
+            <Page>
+              <FeedSkeleton />
+            </Page>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+// One full screen's worth of reading — min-h-full (not h-full) is the load-bearing part: it
+// gives short, collapsed content a full page to be centered in (the Reels-like feel), while
+// letting an expanded card simply grow taller than one screen without fighting the layout,
+// since min-height is a floor, not a cap. snap-start aligns the TOP of each page to the
+// container's top edge as the scroll target.
+function Page({ children }: { children: React.ReactNode }) {
+  return (
+    <section className="flex min-h-full snap-start flex-col justify-center px-4 py-10 [scroll-snap-stop:always]">
+      <div className="mx-auto w-full max-w-xl">{children}</div>
+    </section>
   );
 }
 
@@ -428,49 +472,35 @@ interface FullFollowUpResult {
   content?: KnowledgeContent;
 }
 
-function CaughtUpCard({
-  recentlyExplored,
+// Just the message + refresh button now — the revisit cards it used to render inline are their
+// own Pages at the top level (DriftClient) so each one still gets a full screen to itself,
+// consistent with every other card in the feed.
+function CaughtUpMessage({
   name,
   onCheckForMore,
   checking,
 }: {
-  recentlyExplored: RecentlyExplored[];
   name: string | null;
   onCheckForMore: () => void;
   checking: boolean;
 }) {
   return (
-    <div>
-      <div className="rounded-2xl bg-white p-10 text-center shadow-sm ring-1 ring-stone-200/70 dark:bg-zinc-950 dark:ring-zinc-800">
-        <p className="font-editorial text-2xl italic text-stone-900 dark:text-stone-100">
-          You&apos;re caught up with learning for today{name ? `, ${name}` : ""}.
-        </p>
-        <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-stone-500 dark:text-stone-400">
-          Paced to how long it takes to sit with an idea, not how long we can keep you scrolling —
-          more shows up as the group asks new things. Try explaining one below from memory before
-          you go.
-        </p>
-        <button
-          onClick={onCheckForMore}
-          disabled={checking}
-          className="mt-6 rounded-full border border-stone-300 px-4 py-2 text-xs font-medium text-stone-600 hover:border-stone-400 hover:text-stone-800 disabled:opacity-50 dark:border-zinc-700 dark:text-stone-400 dark:hover:text-stone-200"
-        >
-          {checking ? "Checking…" : "Check for anything new"}
-        </button>
-      </div>
-
-      {recentlyExplored.length > 0 && (
-        <div className="mt-10">
-          <p className="mb-4 text-xs font-medium uppercase tracking-wide text-stone-400">
-            Revisit what you looked at today
-          </p>
-          <div className="space-y-10">
-            {recentlyExplored.map((item) => (
-              <DriftCard key={item.recommendationId} item={item} />
-            ))}
-          </div>
-        </div>
-      )}
+    <div className="rounded-2xl bg-white p-10 text-center shadow-sm ring-1 ring-stone-200/70 dark:bg-zinc-950 dark:ring-zinc-800">
+      <p className="font-editorial text-2xl italic text-stone-900 dark:text-stone-100">
+        You&apos;re caught up with learning for today{name ? `, ${name}` : ""}.
+      </p>
+      <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-stone-500 dark:text-stone-400">
+        Paced to how long it takes to sit with an idea, not how long we can keep you scrolling —
+        more shows up as the group asks new things. Try explaining one below from memory before
+        you go.
+      </p>
+      <button
+        onClick={onCheckForMore}
+        disabled={checking}
+        className="mt-6 rounded-full border border-stone-300 px-4 py-2 text-xs font-medium text-stone-600 hover:border-stone-400 hover:text-stone-800 disabled:opacity-50 dark:border-zinc-700 dark:text-stone-400 dark:hover:text-stone-200"
+      >
+        {checking ? "Checking…" : "Check for anything new"}
+      </button>
     </div>
   );
 }

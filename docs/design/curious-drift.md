@@ -21,10 +21,16 @@ it live.
    deliberately quiet and last — small, low-contrast, corner-anchored, never competing with the
    content for attention.
 
-4. **Layout** — Vertical scroll of discrete cards (not a full-viewport snap-per-card pager —
-   that reads as more "app-like"/aggressive, the opposite of the editorial goal). Centered
-   column, comfortable reading width, generous vertical whitespace between cards so each one
-   reads as its own page, not a dense list.
+4. **Layout — REVERSED 2026-09-24.** Originally a continuous vertical scroll of discrete cards,
+   explicitly not a full-viewport snap-per-card pager (reasoning at the time: that reads as more
+   "app-like"/aggressive, the opposite of the editorial goal). Real device testing showed the
+   continuous version reading as clutter instead — two cards half-visible at once with an
+   orphaned gap between them, not "each one reads as its own page" as intended. Explicit
+   correction, not a rediscovery of the original engagement-feed instinct this brief was trying
+   to avoid: one card fills the screen exactly, CSS scroll-snap (`snap-mandatory` +
+   `scroll-snap-stop: always`, so a fast flick can't skip a card) makes the transition feel like
+   turning a page, not like a feed. Centered column, comfortable reading width preserved from the
+   original brief — only the pagination mechanic changed.
 
 5. **Visual language** — Same neutral (zinc) palette and rounded-corner language as the rest of
    the app for family resemblance, but warmer/quieter: soft card backgrounds over the page
